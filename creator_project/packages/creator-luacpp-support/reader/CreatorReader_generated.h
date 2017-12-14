@@ -60,6 +60,8 @@ struct PageViewBackground;
 
 struct PageView;
 
+struct MotionStreak;
+
 struct SpineSkeleton;
 
 struct AnimationRef;
@@ -115,6 +117,8 @@ struct Rect;
 struct ColorRGB;
 
 struct ColorRGBA;
+
+struct LabelOutline;
 
 enum FontType {
   FontType_System = 0,
@@ -332,12 +336,13 @@ enum AnyNode {
   AnyNode_PageView = 19,
   AnyNode_Mask = 20,
   AnyNode_DragonBones = 21,
+  AnyNode_MotionStreak = 22,
   AnyNode_MIN = AnyNode_NONE,
-  AnyNode_MAX = AnyNode_DragonBones
+  AnyNode_MAX = AnyNode_MotionStreak
 };
 
 inline const char **EnumNamesAnyNode() {
-  static const char *names[] = { "NONE", "Scene", "Sprite", "Label", "Particle", "TileMap", "Node", "Button", "ProgressBar", "ScrollView", "CreatorScene", "EditBox", "RichText", "SpineSkeleton", "VideoPlayer", "WebView", "Slider", "Toggle", "ToggleGroup", "PageView", "Mask", "DragonBones", nullptr };
+  static const char *names[] = { "NONE", "Scene", "Sprite", "Label", "Particle", "TileMap", "Node", "Button", "ProgressBar", "ScrollView", "CreatorScene", "EditBox", "RichText", "SpineSkeleton", "VideoPlayer", "WebView", "Slider", "Toggle", "ToggleGroup", "PageView", "Mask", "DragonBones", "MotionStreak", nullptr };
   return names;
 }
 
@@ -429,6 +434,10 @@ template<> struct AnyNodeTraits<Mask> {
 
 template<> struct AnyNodeTraits<DragonBones> {
   static const AnyNode enum_value = AnyNode_DragonBones;
+};
+
+template<> struct AnyNodeTraits<MotionStreak> {
+  static const AnyNode enum_value = AnyNode_MotionStreak;
 };
 
 inline bool VerifyAnyNode(flatbuffers::Verifier &verifier, const void *union_obj, AnyNode type);
@@ -1122,7 +1131,8 @@ struct Label FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     VT_FONTSIZE = 16,
     VT_FONTTYPE = 18,
     VT_OVERFLOWTYPE = 20,
-    VT_ENABLEWRAP = 22
+    VT_ENABLEWRAP = 22,
+    VT_OUTLINE = 24
   };
   const Node *node() const { return GetPointer<const Node *>(VT_NODE); }
   const flatbuffers::String *labelText() const { return GetPointer<const flatbuffers::String *>(VT_LABELTEXT); }
@@ -1134,6 +1144,7 @@ struct Label FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   FontType fontType() const { return static_cast<FontType>(GetField<int8_t>(VT_FONTTYPE, 0)); }
   LabelOverflowType overflowType() const { return static_cast<LabelOverflowType>(GetField<int8_t>(VT_OVERFLOWTYPE, 0)); }
   bool enableWrap() const { return GetField<uint8_t>(VT_ENABLEWRAP, 0) != 0; }
+  const LabelOutline *outline() const { return GetPointer<const LabelOutline *>(VT_OUTLINE); }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<flatbuffers::uoffset_t>(verifier, VT_NODE) &&
@@ -1149,6 +1160,8 @@ struct Label FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
            VerifyField<int8_t>(verifier, VT_FONTTYPE) &&
            VerifyField<int8_t>(verifier, VT_OVERFLOWTYPE) &&
            VerifyField<uint8_t>(verifier, VT_ENABLEWRAP) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_OUTLINE) &&
+           verifier.VerifyTable(outline()) &&
            verifier.EndTable();
   }
 };
@@ -1166,10 +1179,11 @@ struct LabelBuilder {
   void add_fontType(FontType fontType) { fbb_.AddElement<int8_t>(Label::VT_FONTTYPE, static_cast<int8_t>(fontType), 0); }
   void add_overflowType(LabelOverflowType overflowType) { fbb_.AddElement<int8_t>(Label::VT_OVERFLOWTYPE, static_cast<int8_t>(overflowType), 0); }
   void add_enableWrap(bool enableWrap) { fbb_.AddElement<uint8_t>(Label::VT_ENABLEWRAP, static_cast<uint8_t>(enableWrap), 0); }
+  void add_outline(flatbuffers::Offset<LabelOutline> outline) { fbb_.AddOffset(Label::VT_OUTLINE, outline); }
   LabelBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
   LabelBuilder &operator=(const LabelBuilder &);
   flatbuffers::Offset<Label> Finish() {
-    auto o = flatbuffers::Offset<Label>(fbb_.EndTable(start_, 10));
+    auto o = flatbuffers::Offset<Label>(fbb_.EndTable(start_, 11));
     return o;
   }
 };
@@ -1184,8 +1198,10 @@ inline flatbuffers::Offset<Label> CreateLabel(flatbuffers::FlatBufferBuilder &_f
     float fontSize = 0.0f,
     FontType fontType = FontType_System,
     LabelOverflowType overflowType = LabelOverflowType_None,
-    bool enableWrap = false) {
+    bool enableWrap = false,
+    flatbuffers::Offset<LabelOutline> outline = 0) {
   LabelBuilder builder_(_fbb);
+  builder_.add_outline(outline);
   builder_.add_fontSize(fontSize);
   builder_.add_fontName(fontName);
   builder_.add_lineHeight(lineHeight);
@@ -1209,8 +1225,9 @@ inline flatbuffers::Offset<Label> CreateLabelDirect(flatbuffers::FlatBufferBuild
     float fontSize = 0.0f,
     FontType fontType = FontType_System,
     LabelOverflowType overflowType = LabelOverflowType_None,
-    bool enableWrap = false) {
-  return CreateLabel(_fbb, node, labelText ? _fbb.CreateString(labelText) : 0, horizontalAlignment, verticalAlignment, lineHeight, fontName ? _fbb.CreateString(fontName) : 0, fontSize, fontType, overflowType, enableWrap);
+    bool enableWrap = false,
+    flatbuffers::Offset<LabelOutline> outline = 0) {
+  return CreateLabel(_fbb, node, labelText ? _fbb.CreateString(labelText) : 0, horizontalAlignment, verticalAlignment, lineHeight, fontName ? _fbb.CreateString(fontName) : 0, fontSize, fontType, overflowType, enableWrap, outline);
 }
 
 struct RichText FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
@@ -2441,6 +2458,86 @@ inline flatbuffers::Offset<PageView> CreatePageViewDirect(flatbuffers::FlatBuffe
     const std::vector<flatbuffers::Offset<PageViewPage>> *pages = nullptr,
     flatbuffers::Offset<PageViewBackground> background = 0) {
   return CreatePageView(_fbb, node, inertia, bounceEnabled, direction, indicator, pages ? _fbb.CreateVector<flatbuffers::Offset<PageViewPage>>(*pages) : 0, background);
+}
+
+struct MotionStreak FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
+  enum {
+    VT_NODE = 4,
+    VT_TIMETOFADE = 6,
+    VT_MINSEG = 8,
+    VT_STROKEWIDTH = 10,
+    VT_STROKECOLOR = 12,
+    VT_TEXTUREPATH = 14,
+    VT_FASTMODE = 16
+  };
+  const Node *node() const { return GetPointer<const Node *>(VT_NODE); }
+  float timeToFade() const { return GetField<float>(VT_TIMETOFADE, 0.0f); }
+  float minSeg() const { return GetField<float>(VT_MINSEG, 0.0f); }
+  float strokeWidth() const { return GetField<float>(VT_STROKEWIDTH, 0.0f); }
+  const ColorRGB *strokeColor() const { return GetStruct<const ColorRGB *>(VT_STROKECOLOR); }
+  const flatbuffers::String *texturePath() const { return GetPointer<const flatbuffers::String *>(VT_TEXTUREPATH); }
+  bool fastMode() const { return GetField<uint8_t>(VT_FASTMODE, 0) != 0; }
+  bool Verify(flatbuffers::Verifier &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_NODE) &&
+           verifier.VerifyTable(node()) &&
+           VerifyField<float>(verifier, VT_TIMETOFADE) &&
+           VerifyField<float>(verifier, VT_MINSEG) &&
+           VerifyField<float>(verifier, VT_STROKEWIDTH) &&
+           VerifyField<ColorRGB>(verifier, VT_STROKECOLOR) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_TEXTUREPATH) &&
+           verifier.Verify(texturePath()) &&
+           VerifyField<uint8_t>(verifier, VT_FASTMODE) &&
+           verifier.EndTable();
+  }
+};
+
+struct MotionStreakBuilder {
+  flatbuffers::FlatBufferBuilder &fbb_;
+  flatbuffers::uoffset_t start_;
+  void add_node(flatbuffers::Offset<Node> node) { fbb_.AddOffset(MotionStreak::VT_NODE, node); }
+  void add_timeToFade(float timeToFade) { fbb_.AddElement<float>(MotionStreak::VT_TIMETOFADE, timeToFade, 0.0f); }
+  void add_minSeg(float minSeg) { fbb_.AddElement<float>(MotionStreak::VT_MINSEG, minSeg, 0.0f); }
+  void add_strokeWidth(float strokeWidth) { fbb_.AddElement<float>(MotionStreak::VT_STROKEWIDTH, strokeWidth, 0.0f); }
+  void add_strokeColor(const ColorRGB *strokeColor) { fbb_.AddStruct(MotionStreak::VT_STROKECOLOR, strokeColor); }
+  void add_texturePath(flatbuffers::Offset<flatbuffers::String> texturePath) { fbb_.AddOffset(MotionStreak::VT_TEXTUREPATH, texturePath); }
+  void add_fastMode(bool fastMode) { fbb_.AddElement<uint8_t>(MotionStreak::VT_FASTMODE, static_cast<uint8_t>(fastMode), 0); }
+  MotionStreakBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
+  MotionStreakBuilder &operator=(const MotionStreakBuilder &);
+  flatbuffers::Offset<MotionStreak> Finish() {
+    auto o = flatbuffers::Offset<MotionStreak>(fbb_.EndTable(start_, 7));
+    return o;
+  }
+};
+
+inline flatbuffers::Offset<MotionStreak> CreateMotionStreak(flatbuffers::FlatBufferBuilder &_fbb,
+    flatbuffers::Offset<Node> node = 0,
+    float timeToFade = 0.0f,
+    float minSeg = 0.0f,
+    float strokeWidth = 0.0f,
+    const ColorRGB *strokeColor = 0,
+    flatbuffers::Offset<flatbuffers::String> texturePath = 0,
+    bool fastMode = false) {
+  MotionStreakBuilder builder_(_fbb);
+  builder_.add_texturePath(texturePath);
+  builder_.add_strokeColor(strokeColor);
+  builder_.add_strokeWidth(strokeWidth);
+  builder_.add_minSeg(minSeg);
+  builder_.add_timeToFade(timeToFade);
+  builder_.add_node(node);
+  builder_.add_fastMode(fastMode);
+  return builder_.Finish();
+}
+
+inline flatbuffers::Offset<MotionStreak> CreateMotionStreakDirect(flatbuffers::FlatBufferBuilder &_fbb,
+    flatbuffers::Offset<Node> node = 0,
+    float timeToFade = 0.0f,
+    float minSeg = 0.0f,
+    float strokeWidth = 0.0f,
+    const ColorRGB *strokeColor = 0,
+    const char *texturePath = nullptr,
+    bool fastMode = false) {
+  return CreateMotionStreak(_fbb, node, timeToFade, minSeg, strokeWidth, strokeColor, texturePath ? _fbb.CreateString(texturePath) : 0, fastMode);
 }
 
 struct SpineSkeleton FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
@@ -3879,6 +3976,43 @@ inline flatbuffers::Offset<AnimPropSkewY> CreateAnimPropSkewYDirect(flatbuffers:
   return CreateAnimPropSkewY(_fbb, frame, value, curveType ? _fbb.CreateString(curveType) : 0, curveData ? _fbb.CreateVector<float>(*curveData) : 0);
 }
 
+struct LabelOutline FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
+  enum {
+    VT_COLOR = 4,
+    VT_WIDTH = 6
+  };
+  const ColorRGBA *color() const { return GetStruct<const ColorRGBA *>(VT_COLOR); }
+  float width() const { return GetField<float>(VT_WIDTH, 0.0f); }
+  bool Verify(flatbuffers::Verifier &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyField<ColorRGBA>(verifier, VT_COLOR) &&
+           VerifyField<float>(verifier, VT_WIDTH) &&
+           verifier.EndTable();
+  }
+};
+
+struct LabelOutlineBuilder {
+  flatbuffers::FlatBufferBuilder &fbb_;
+  flatbuffers::uoffset_t start_;
+  void add_color(const ColorRGBA *color) { fbb_.AddStruct(LabelOutline::VT_COLOR, color); }
+  void add_width(float width) { fbb_.AddElement<float>(LabelOutline::VT_WIDTH, width, 0.0f); }
+  LabelOutlineBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
+  LabelOutlineBuilder &operator=(const LabelOutlineBuilder &);
+  flatbuffers::Offset<LabelOutline> Finish() {
+    auto o = flatbuffers::Offset<LabelOutline>(fbb_.EndTable(start_, 2));
+    return o;
+  }
+};
+
+inline flatbuffers::Offset<LabelOutline> CreateLabelOutline(flatbuffers::FlatBufferBuilder &_fbb,
+    const ColorRGBA *color = 0,
+    float width = 0.0f) {
+  LabelOutlineBuilder builder_(_fbb);
+  builder_.add_width(width);
+  builder_.add_color(color);
+  return builder_.Finish();
+}
+
 inline bool VerifyAnyNode(flatbuffers::Verifier &verifier, const void *union_obj, AnyNode type) {
   switch (type) {
     case AnyNode_NONE: return true;
@@ -3903,6 +4037,7 @@ inline bool VerifyAnyNode(flatbuffers::Verifier &verifier, const void *union_obj
     case AnyNode_PageView: return verifier.VerifyTable(reinterpret_cast<const PageView *>(union_obj));
     case AnyNode_Mask: return verifier.VerifyTable(reinterpret_cast<const Mask *>(union_obj));
     case AnyNode_DragonBones: return verifier.VerifyTable(reinterpret_cast<const DragonBones *>(union_obj));
+    case AnyNode_MotionStreak: return verifier.VerifyTable(reinterpret_cast<const MotionStreak *>(union_obj));
     default: return false;
   }
 }

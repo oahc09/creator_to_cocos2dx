@@ -88,8 +88,10 @@ void AnimationManager::runAnimationClip(cocos2d::Node *target, AnimationClip* an
 {
     auto animate = AnimateClip::createWithAnimationClip(target, animationClip);
     animate->retain();
+    this->retain();
     animate->setCallbackForEndevent([=]() {
         removeAnimateClip(target, animationClip->getName());
+        this->release();
     });
     
     animate->startAnimate();
@@ -104,7 +106,7 @@ void AnimationManager::removeAnimateClip(cocos2d::Node *target, const std::strin
         if (std::get<0>(e) == target && std::get<1>(e) == animationClipName)
         {
             // release AnimateClip
-            std::get<2>(e)->release();
+            std::get<2>(e)->autorelease();
             
             _cachedAnimates.erase(iter);
             break;
